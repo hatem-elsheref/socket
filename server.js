@@ -3,7 +3,7 @@ const http = require('http')
 const url = require('url')
 
 
-const application = http.createServer();
+const application = http.createServer()
 
 const wsServer = new webSocket.Server({noServer : true})
 
@@ -18,16 +18,39 @@ const systemUsers = [
     {id : 8 ,  token : 123456789101112 ,     name :"tawfeek ahmed"},
     {id : 9 ,  token : 12345678910111213 ,   name :"abeer ahmed"},
     {id : 10 , token : 1234567891011121314 , name :"heba samir"}
-];
+]
 
 
 
 const onlineUsers = []
 
 
-const NOTIFICATION_CHANNEL = 'notification';
-const CHAT_CHANNEL = 'chat';
-const BROADCAST_CHANNEL = 'broadcast';
+const NOTIFICATION_CHANNEL = 'notification'
+const CHAT_CHANNEL = 'chat'
+const BROADCAST_CHANNEL = 'broadcast'
+const PING_PONG = 3000
+
+
+
+function noop(){}
+
+function pingPong(){
+    for(var i = 0 ; i < onlineUsers.length ; i++){    
+        if(onlineUsers[i].connection.is_live === false){
+            onlineUsers[i].connection.terminate()
+            onlineUsers.splice(i,1)
+            return
+        }    
+
+
+        console.log('ping ', onlineUsers[i].connection.is_live)
+        onlineUsers[i].connection.is_live = false;
+        onlineUsers[i].connection.ping(noop)
+        console.log(onlineUsers[i].token);
+    }
+}
+
+setInterval(pingPong,PING_PONG)
 
 
 wsServer.on('connection', function connection(socket){
@@ -38,60 +61,62 @@ wsServer.on('connection', function connection(socket){
         switch(parsed_message.channel){
             case NOTIFICATION_CHANNEL:
                 notification(parsed_message)
-                break;
+                break
             case CHAT_CHANNEL:
                 sendToUser(parsed_message)
-                break;
+                break
             case BROADCAST_CHANNEL:
                 broadcast(parsed_message)
-                break; 
+                break
         }
     
-    });
+    })
 
-
+    socket.on('pong',() => {
+        socket.is_live = true;
+        console.log('pong ',socket.is_live)
+    })
 })
 
 
 application.on('upgrade', function upgrade(request, socket, head) {
     
 
-    const queryString = url.parse(request.url,true).query;
+    const queryString = url.parse(request.url,true).query
   
-    const userToken = queryString.token;
+    const userToken = queryString.token
 
-    userInfo = authenticate(userToken);
+    userInfo = authenticate(userToken)
 
     if(typeof userInfo === 'boolean'){
        
-        socket.write('HTTP/1.1 401 Unauthorized');
-        socket.destroy();
-        return;
+        socket.write('HTTP/1.1 401 Unauthorized')
+        socket.destroy()
+        return
 
     }
 
     wsServer.handleUpgrade(request, socket, head, function done(userSocketConnection) {
-        userSocketConnection.is_live = true;
-        onlineUsers.push({token : userToken , authUser : userInfo , connection : userSocketConnection});
-
-        wsServer.emit('connection', userSocketConnection);
-      });
-  });
+        userSocketConnection.is_live = true
+        onlineUsers.push({token : userToken , authUser : userInfo , connection : userSocketConnection})
+        wsServer.emit('connection', userSocketConnection)
+      })
+  })
 
 
 
 function authenticate(token){
     
     if(typeof token === 'undefined' || token.length === 0){
-        return false;
+        return false
     }
 
     for(var i = 0 ; i < systemUsers.length ; i++){    
         if(systemUsers[i].token == token)
-            return systemUsers[i];
+            return systemUsers[i]
     }
 
-    return false;
+    return false
 }
 
 
@@ -99,8 +124,8 @@ function authenticate(token){
 function sendToUser(message){
     for(var i = 0 ; i < onlineUsers.length ; i++){    
         if(onlineUsers[i].authUser.id == message.to){
-            onlineUsers[i].connection.send(JSON.stringify(message));
-            return;
+            onlineUsers[i].connection.send(JSON.stringify(message))
+            return
         }    
     }
 }
@@ -110,11 +135,11 @@ function broadcast(message){
     for(var i = 0 ; i < onlineUsers.length ; i++){
        
         if(onlineUsers[i].authUser.id != message.user_id){
-            onlineUsers[i].connection.send(JSON.stringify(message));
+            onlineUsers[i].connection.send(JSON.stringify(message))
         }     
            
     } 
-    return;
+    return
 }
 
 
@@ -124,4 +149,4 @@ function notification(message){
     sendToUser(message)
 }
 
-application.listen(3000);
+application.listen(3000)
