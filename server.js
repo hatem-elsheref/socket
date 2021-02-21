@@ -25,6 +25,9 @@ const systemUsers = [
 const onlineUsers = []
 
 
+
+const MY_INFO = 'my_info'
+const WHO_IS_ONLINE = 'online_users'
 const NOTIFICATION_CHANNEL = 'notification'
 const CHAT_CHANNEL = 'chat'
 const BROADCAST_CHANNEL = 'broadcast'
@@ -42,6 +45,7 @@ function pingPong(){
             return
         }    
 
+        broadcastToAll(getOnlineUsers())
 
         console.log('ping ', onlineUsers[i].connection.is_live)
         onlineUsers[i].connection.is_live = false;
@@ -53,8 +57,12 @@ function pingPong(){
 setInterval(pingPong,PING_PONG)
 
 
-wsServer.on('connection', function connection(socket){
+wsServer.on('connection', function connection(socket,client){
 
+
+    socket.send(getOnlineUsers())
+    socket.send({type : MY_INFO, user_id : client.id , name : client.name})
+    
     socket.on('message',function incommingMessage(message){
         let parsed_message = JSON.parse(message)
 
@@ -99,7 +107,7 @@ application.on('upgrade', function upgrade(request, socket, head) {
     wsServer.handleUpgrade(request, socket, head, function done(userSocketConnection) {
         userSocketConnection.is_live = true
         onlineUsers.push({token : userToken , authUser : userInfo , connection : userSocketConnection})
-        wsServer.emit('connection', userSocketConnection)
+        wsServer.emit('connection', userSocketConnection,userInfo)
       })
   })
 
@@ -139,14 +147,35 @@ function broadcast(message){
         }     
            
     } 
-    return
 }
+
 
 
 
 //{"message" : "hi user" , "user_id" : 1 , "to" : 2 , "channel" : "notification" }
 function notification(message){
     sendToUser(message)
+}
+ 
+function getOnlineUsers(){
+
+    let online = []
+
+    for(var i = 0 ; i < onlineUsers.length ; i++){
+           
+       online.push({user_id : onlineUsers[i].authUser.id,name : onlineUsers[i].authUser.name})    
+    } 
+
+    return {channel : WHO_IS_ONLINE,users : online};
+}
+
+
+function broadcastToAll(message){
+    for(var i = 0 ; i < onlineUsers.length ; i++){
+       
+        onlineUsers[i].connection.send(JSON.stringify(message))  
+           
+    } 
 }
 
 application.listen(3000)
